@@ -1,0 +1,286 @@
+<template>
+  <div class="home">
+    <div class="home_header f-con">
+      <div class="home_header_img f-left">
+        <img src="../modules/elementui-2.3.5/img/logo1.png" alt="" height="38px" @click="onPost('action-bar','imgclk')">
+      </div>
+      <div class="home_welcome f-left">欢迎您使用恒拓微服务平台系统</div>
+      <div class="f-right">
+        <el-button type="text">{{(account()||{}).loginId}}</el-button>
+        <el-button type="text">个人设置</el-button>
+        <el-button type="text" @click="loginOut">登出</el-button>
+      </div>
+    </div>
+    <div class="home_center">
+      <div class="home_left">
+        <el-button type="text" @click="onPost('menu-action','fold')" class="home_left_btn">
+          <i class="el-icon-d-arrow-left" :class="{'icon--close': menuFold}"></i>
+        </el-button>
+        <el-menu class="home_menu"
+                 background-color="#363e42"
+                 text-color="#aaaaaa"
+                 active-text-color="#ffffff"
+                 @select="selectMenu"
+                 :default-openeds="menus.opens"
+                 :default-active="menus.active"
+                 :collapse="menuFold"
+                 router>
+          <template v-for="(item, key) in menus.items">
+            <el-menu-item v-if="!item.items" :index="qdpUrl(menus, item)">
+              <i :class="qdpIcon(menus, item)"></i>
+              <span slot="title">{{qdpTitle(menus, item)}}</span>
+            </el-menu-item>
+            <el-submenu v-else :index="item.id" :key="item.id">
+              <template slot="title">
+                <i :class="qdpIcon(menus, item)"></i>
+                <span slot="title">{{qdpTitle(menus, item)}}</span>
+              </template>
+              <!--第2层-->
+              <template v-for="(sitem, key) in item.items">
+                <el-menu-item v-if="!sitem.items" :index="qdpUrl(menus, sitem)">
+                  <i :class="qdpIcon(menus, sitem)"></i>
+                  <span slot="title">{{qdpTitle(menus, sitem)}}</span>
+                </el-menu-item>
+                <el-submenu v-else :index="sitem.id" :key="sitem.id">
+                  <template slot="title">
+                    <i :class="qdpIcon(menus, sitem)"></i>
+                    <span slot="title">{{qdpTitle(menus, sitem)}}</span>
+                  </template>
+                  <!--第3层-->
+                  <el-menu-item v-for="ssitem in sitem.items" :index="qdpUrl(menus, ssitem)" :key="ssitem.id">
+                    <i :class="qdpIcon(menus, ssitem)"></i>
+                    <span slot="title">{{qdpTitle(menus, ssitem)}}</span>
+                  </el-menu-item>
+                  <!--第3层end-->
+                </el-submenu>
+              </template>
+              <!--第2层end-->
+            </el-submenu>
+          </template>
+        </el-menu>
+      </div>
+      <div :class="['home_content', {'home_content--open': menuFold}]">
+        <div class="home_content_router">
+          <router-view ></router-view>
+        </div>
+        <div class="home_footer">2017-2019 &copy; Forever Open Source & Forever Flying {{app_version}}</div>
+      </div>
+    </div>
+  </div>
+</template>
+<script type="text/javascript">
+define(['vue'], function(Vue) {
+    return {
+        template: template, //
+        components : {
+		},
+        data: function() {
+            return {
+            	app_version: app_version||'',
+            	logoutUrl: ctx + '/system/logout.do',
+            	menuFold: false,
+            	activeCollapse: '',
+                menus: {
+                	urlField: 'resourceIdCode',
+                	opens:[],
+                	active: '',
+                    items: {}
+                }
+            };
+        }, //
+        created: function() {
+            this.loadMenu();
+        }, //
+        methods: {
+        	account: getters.account,//
+            accountId: getters.accountId, //
+            qdpUrl: function(config, value){
+            	var url = qdpUrl(config, value);
+				url = "/home" + url;
+				return url;
+            },
+            qdpTitle: qdpTitle,
+            qdpLabel: qdpLabel,
+            qdpIcon: function(config, value) {
+                return qdpIcon(config, value) || 'el-icon-ion-android-menu';
+            },
+            qdpSubItem: qdpSubItem,
+            qdpIsArray: qdpIsArray, //
+            goToUrl: function(url){
+            	url && Router.push(url);
+            },
+            loadMenu: function() {
+                LOG("FN: home.loadMenu")
+                var root = this;
+                var baseUrl = "/ws/json/authorizationApplication/pageFindAuthMenuByAccountIdMap/arg0="+root.accountId();
+                var query = qdpObj({}, 'vo', {}, 'page', qdpObj({}, 'pageSize', 1000, 'currentPage', 1, 'orderBy', []));
+                var url = qdpFormatUrl(ctx + baseUrl, query);
+                LOG("=====url=====>" + url);
+                root.$http.get(url).then(
+                    function(data) {
+                    	var all = qdpAjaxDataBody(data) || [], arr = qdpIsArray(all) ? all : (all.rows || []);//要考虑返回是一个Page对象的情况
+                        var menus = {}, menuItems = {}, urlHash=window.location.hash||'#', active, open=[];
+                        qdpMap(arr, function(value) {
+                            menuItems[value.id] = value;
+                            var url = root.qdpUrl(root.menus, value);
+                            if(url && urlHash.indexOf(url)==1){
+                            	active=value;
+                            }
+                        });
+                        qdpMap(menuItems, function(value) { //setup menu level
+                            if (value.parentId) {
+                                menuItems[value.parentId] && (menuItems[value.parentId].items = menuItems[value.parentId].items || {}) && (menuItems[value.parentId].items[value.id] = value);
+                            } else {
+                                menus[value.id] = value;
+                                open.push(value.id);
+                            }
+                        });
+                        if(active){
+                        	Vue.set(root.menus, 'active', root.qdpUrl(root.menus, active));
+                        	var parent = menuItems[active.parentId], counter=5;
+                        	while(parent&&open.indexOf(parent.id)<0&&counter-->0){
+                        		open.push(parent.id);
+                        		active = parent;
+                        		parent = menuItems[active.parentId];
+                        	}
+                        }
+                        Vue.set(root.menus, 'opens', open);
+                        Vue.set(root.menus, 'items', menus);
+                    },
+                    function(response) {
+                        root.$notify({
+                            title: 'Load Menu=>Error',
+                            desc: qdpToString(response),
+                            duration: 0
+                        });
+                    });
+            }, //
+            loginOut: function() {
+                var root = this,
+                    url = root.logoutUrl,
+                    data = {};
+                root.$http.post(url, data).then(function(data) {
+                        root.$message.info("登出成功");
+                        sessionStorage.clear();
+                        Router.push("/login");
+                    },
+                    function(response) {
+                        root.$notify({ title: 'Http Post=>Error', desc: url + '\n<br/>' + qdpToString(response), duration: 0 });
+                        root.$message.info("登出成功");
+                        sessionStorage.clear();
+                        Router.push("/login");
+                    });
+            },
+            onPost: function(eventType, arg0, arg1, arg2, arg3) {
+                LOG("EV: home.onPost." + eventType);
+                LOG("MENU:"+arg0);
+                var root=this;
+                if('menu-action'==eventType){
+                	var action = arg0;
+                	if('fold'==action){
+                		root.menuFold = !root.menuFold;
+                	}
+                }
+                if ("action-bar" == eventType) {
+					LOG("action-bar:" + arg0);
+                    var action = arg0;
+                    if ('imgclk' == action) {
+                        Router.push("/home");
+                        return;
+                    }
+				}
+            },
+          selectMenu: function(index) {
+        	  this.menus.active = index
+          }
+        }
+    };
+});
+</script>
+<style>
+  /*主页*/
+  .home_header{
+    padding-right: 30px;
+    color: white;
+    height: 40px;
+    background-color: #363e42;
+  }
+  .home_header .el-button--text {
+    color: white;
+  }
+  .home_header_img {
+    width: 200px;
+  }
+  .home_header_img img {
+    height: 40px;
+    width: auto;
+    margin-left: 18px;
+    margin-top: 2px;
+  }
+  .home_welcome{
+    font-size: 14px;
+    margin-left: 30px;
+    line-height: 40px;
+  }
+  .home_center{
+    height: calc(100vh - 40px);
+    width: 100%;
+    position: relative;
+  }
+  .home_left{
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background-color: #363e42;
+  }
+  .home_left .el-button{
+    width: 100%;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255, 0.2);
+    border-radius: 0;
+  }
+  .home_left .el-button--text{
+    color: white;
+  }
+  .home_left .el-button i{
+    transition: all 0.3s ease-in-out;
+  }
+  .home_left .el-button i.icon--close{
+    transform: rotate(180deg);
+  }
+  .home_menu.el-menu{
+    border: 0;
+  }
+  .home_menu .el-submenu__title, .home_menu .el-menu-item{
+    /*font-size: 12px;*/
+  }
+  .home_menu:not(.el-menu--collapse) {
+    width: 200px;
+  }
+  .home_content{
+    transition: all 0.3s ease-in-out;
+    position: absolute;
+    top: 0;
+    left: 200px;
+    height: 100%;
+    width: calc(100% - 200px);
+  }
+  .home_content--open{
+    left: 65px;
+    width: calc(100% - 65px);
+  }
+  .home_content_router{
+    background-color: #f3f4f6;
+    padding: 10px;
+    overflow-y: auto;
+    height: calc(100% - 44px);
+  }
+  .home_footer{
+    text-align: center;
+    height: 24px;
+    line-height: 24px;
+  }
+</style>
