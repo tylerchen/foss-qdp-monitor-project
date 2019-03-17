@@ -4,6 +4,6 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.iff</groupId>
   <artifactId>tc-util-project</artifactId>
-  <version>1.0.20</version>
+  <version>1.0.28</version>
   <description>POM was created from install:install-file</description>
 </project>
